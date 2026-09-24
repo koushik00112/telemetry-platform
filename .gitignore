@@ -8,3 +8,6 @@ __pycache__/
 coverage.xml
 .env
 *.db
+.sim_devices.json
+fault_events.csv
+loadtest/results/

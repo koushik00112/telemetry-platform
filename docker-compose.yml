@@ -35,5 +35,15 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://telemetry:telemetry@db:5432/telemetry
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:

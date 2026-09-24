@@ -5,6 +5,7 @@ WORKDIR /srv
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY simulator ./simulator
 RUN pip install .
 
 COPY alembic.ini ./

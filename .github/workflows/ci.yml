@@ -31,7 +31,7 @@ jobs:
       - name: Lint
         run: ruff check . && ruff format --check .
       - name: Type check
-        run: mypy app
+        run: mypy app simulator
       - name: Tests (unit + Postgres integration)
         run: pytest --cov=app --cov-report=term-missing
       - name: Migrations are reversible
@@ -44,9 +44,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compose stack comes up from a clean clone and passes the smoke test
         run: |
-          docker compose up -d --build api
+          docker compose up -d --build api worker
           timeout 60 sh -c 'until curl -sf localhost:8000/healthz; do sleep 1; done'
-          pip install httpx
+          pip install -e .
           python scripts/smoke.py --url http://localhost:8000
+          python -m simulator --devices 5 --interval 60 --duration 3600 --backfill --fault-rate 0.05
       - if: failure()
         run: docker compose logs

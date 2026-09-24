@@ -1,37 +1,13 @@
 """API tests on in-memory SQLite. Fast, but not Postgres: see tests/integration for that."""
 
-from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.db import get_session
-from app.main import app
-from app.models import Base
+from tests.unit.conftest import ADMIN
 
-ADMIN = {"X-Admin-Token": "dev-admin-token"}
 NOW = datetime.now(UTC).replace(microsecond=0)
-
-
-@pytest.fixture
-def client() -> Iterator[TestClient]:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
-
-    def override() -> Iterator[Session]:
-        with factory() as s:
-            yield s
-
-    app.dependency_overrides[get_session] = override
-    yield TestClient(app)
-    app.dependency_overrides.clear()
 
 
 def register(client: TestClient, name: str = "dev-1") -> dict[str, str]:

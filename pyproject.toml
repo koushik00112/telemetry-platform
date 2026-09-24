@@ -20,13 +20,14 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+load = ["locust>=2.31"]
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "simulator*"]
 
 [tool.ruff]
 line-length = 100
@@ -47,7 +48,7 @@ known-third-party = ["alembic"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-exclude = ["alembic/"]
+exclude = ["alembic/", "loadtest/"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
