@@ -88,7 +88,11 @@ async def send_batch(
     stats.failed_batches += 1
 
 
-async def run(args: argparse.Namespace, keys: dict[str, str]) -> tuple[Stats, list[DeviceModel]]:
+async def run(
+    args: argparse.Namespace,
+    keys: dict[str, str],
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> tuple[Stats, list[DeviceModel]]:
     devices = [DeviceModel(name, i, args.seed, args.fault_rate) for i, name in enumerate(keys)]
     stats = Stats()
     ticks = int(args.duration // args.interval)
@@ -105,7 +109,9 @@ async def run(args: argparse.Namespace, keys: dict[str, str]) -> tuple[Stats, li
             async with sem:
                 await send_batch(client, keys[name], batch, stats)
 
-    async with httpx.AsyncClient(base_url=args.url, timeout=30, limits=limits) as client:
+    async with httpx.AsyncClient(
+        base_url=args.url, timeout=30, limits=limits, transport=transport
+    ) as client:
         tasks: set[asyncio.Task[None]] = set()
         for tick in range(ticks):
             ts = start + step * tick if args.backfill else datetime.now(UTC)
@@ -140,7 +146,7 @@ def write_events(path: Path, devices: list[DeviceModel]) -> int:
     return len(rows)
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="python -m simulator",
         description=__doc__,
@@ -158,9 +164,14 @@ def main() -> None:
     p.add_argument("--devices-file", type=Path, default=Path(".sim_devices.json"))
     p.add_argument("--events", type=Path, default=Path("fault_events.csv"))
     p.add_argument("--admin-token", default=os.environ.get("ADMIN_TOKEN", "dev-admin-token"))
-    args = p.parse_args()
+    args = p.parse_args(argv)
     if not 1 <= args.batch_size <= 1000:
         p.error("--batch-size must be between 1 and 1000 (the API's batch limit)")
+    return args
+
+
+def main() -> None:
+    args = parse_args()
 
     with httpx.Client(base_url=args.url, timeout=10) as client:
         keys = load_or_register(

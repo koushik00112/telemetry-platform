@@ -11,3 +11,9 @@ coverage.xml
 .sim_devices.json
 fault_events.csv
 loadtest/results/
+# Terraform (commit .terraform.lock.hcl, never state or backend config)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+backend.hcl

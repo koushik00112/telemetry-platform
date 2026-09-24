@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import DeviceDep, SessionDep
 from app.config import get_settings
+from app.metrics import READINGS_INGESTED
 from app.models import IdempotencyKey, Reading
 from app.schemas import METRIC_PATTERN, ReadingBatchIn, ReadingBatchResult, ReadingIn, ReadingOut
 from app.services.ingest import insert_readings
@@ -26,6 +27,7 @@ def ingest_reading(
 ) -> ReadingOut:
     inserted = insert_readings(session, device.id, [body])
     session.commit()
+    READINGS_INGESTED.labels("inserted" if inserted else "duplicate").inc()
     if not inserted:
         response.status_code = status.HTTP_200_OK
     stored = session.scalars(
@@ -70,6 +72,8 @@ def ingest_batch(
         )
     try:
         session.commit()
+        READINGS_INGESTED.labels("inserted").inc(result.inserted)
+        READINGS_INGESTED.labels("duplicate").inc(result.duplicates)
     except IntegrityError:
         # A concurrent request with the same key committed first; return its result.
         session.rollback()

@@ -8,10 +8,24 @@ import argparse
 import math
 import os
 import sys
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
+
+
+def wait_until_up(client: httpx.Client, timeout: float = 90) -> None:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if client.get("/healthz").status_code == 200:
+                return
+        except httpx.TransportError:
+            pass
+        if time.monotonic() > deadline:
+            sys.exit(f"API at {client.base_url} not healthy after {timeout:.0f}s")
+        time.sleep(1)
 
 
 def main() -> int:
@@ -22,6 +36,7 @@ def main() -> int:
     args = parser.parse_args()
 
     with httpx.Client(base_url=args.url, timeout=10) as client:
+        wait_until_up(client)
         r = client.post(
             "/devices",
             json={"name": f"smoke-{uuid.uuid4().hex[:8]}"},

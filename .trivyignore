@@ -1,0 +1,19 @@
+# Each ignored finding needs a reason and a review date. Keep this list short.
+#
+# AVD-AWS-0107 / AVD-AWS-0104: security groups allow 0.0.0.0/0.
+#   The ALB must accept public HTTP(S), and tasks need HTTPS egress to AWS APIs
+#   because there is no NAT gateway or VPC endpoints (cost; ADR 0003). Review: 2026-12-01.
+AVD-AWS-0107
+AVD-AWS-0104
+# AVD-AWS-0054: ALB listens on plain HTTP. Only when no certificate_arn is set (no domain yet);
+#   with a certificate, HTTP redirects to HTTPS. Review: 2026-12-01.
+AVD-AWS-0054
+# AVD-AWS-0053: load balancer is internet-facing. That is its job: it's the public API.
+AVD-AWS-0053
+# AVD-AWS-0057: IAM wildcard resources. ecr:GetAuthorizationToken and
+#   ecs:RegisterTaskDefinition/DescribeTaskDefinition don't support resource-level permissions;
+#   the other ECS actions are narrowed with an ecs:cluster condition. Review: 2026-12-01.
+AVD-AWS-0057
+# AVD-AWS-0132: state bucket uses SSE-S3, not a customer-managed KMS key ($1/month per key).
+#   Bucket is private, versioned, TLS-only. Review: 2026-12-01.
+AVD-AWS-0132

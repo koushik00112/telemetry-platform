@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -33,21 +36,91 @@ jobs:
       - name: Type check
         run: mypy app simulator
       - name: Tests (unit + Postgres integration)
-        run: pytest --cov=app --cov-report=term-missing
+        run: pytest --cov=app --cov=simulator --cov-report=term-missing --cov-fail-under=85
       - name: Migrations are reversible
         run: alembic downgrade base && alembic upgrade head
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history, so the secret scan covers past commits too
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Python dependency audit
+        run: |
+          pip install pip-audit
+          pip install -e .
+          pip-audit --skip-editable
+      - name: Secret and vulnerable-dependency scan (blocks on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Terraform and Dockerfile misconfiguration scan (blocks on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL
+          trivyignores: .trivyignore
+          exit-code: "1"
+      - name: Misconfiguration report (HIGH and below, informational)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: LOW,MEDIUM,HIGH
+          trivyignores: .trivyignore
+          exit-code: "0"
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - name: Format
+        run: terraform fmt -check -recursive infra
+      - name: Validate bootstrap
+        working-directory: infra/bootstrap
+        run: terraform init -backend=false -input=false && terraform validate
+      - name: Validate app
+        working-directory: infra/app
+        run: terraform init -backend=false -input=false && terraform validate
 
   docker:
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - name: Compose stack comes up from a clean clone and passes the smoke test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compose stack comes up from a clean clone
         run: |
           docker compose up -d --build api worker
-          timeout 60 sh -c 'until curl -sf localhost:8000/healthz; do sleep 1; done'
           pip install -e .
+      - name: Smoke test and simulator backfill
+        run: |
           python scripts/smoke.py --url http://localhost:8000
           python -m simulator --devices 5 --interval 60 --duration 3600 --backfill --fault-rate 0.05
+      - name: Image scan (fixable HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: telemetry-platform:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Database outage drill (API must return 503, then recover)
+        shell: bash # -eo pipefail, so a failing drill isn't hidden by tee
+        run: scripts/db_outage_drill.sh | tee -a "$GITHUB_STEP_SUMMARY"
       - if: failure()
         run: docker compose logs

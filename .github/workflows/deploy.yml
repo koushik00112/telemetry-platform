@@ -1,0 +1,85 @@
+name: Deploy
+
+# Runs after CI passes on main. The build job pushes the image without approval; the
+# deploy job waits for a reviewer on the "production" environment before touching AWS.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC: short-lived AWS credentials, no stored keys
+
+env:
+  AWS_REGION: eu-west-2
+
+jobs:
+  build:
+    if: >-
+      vars.AWS_BUILD_ROLE_ARN != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04-arm # native ARM64 build for Graviton Fargate tasks
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        run: |
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "image=${{ steps.ecr.outputs.registry }}/telemetry:${sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: docker build -t "${{ steps.meta.outputs.image }}" .
+
+      - name: Scan image (fail on fixable HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Push image
+        run: docker push "${{ steps.meta.outputs.image }}"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production # configure "Required reviewers" on this environment in repo settings
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: deploy
+        name: Migrate and roll services
+        run: |
+          scripts/deploy_ecs.sh "${{ needs.build.outputs.image }}"
+          url=$(aws ssm get-parameter --name /telemetry/deploy-config \
+            --query Parameter.Value --output text | jq -r .base_url)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
