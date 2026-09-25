@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.90"
+      version = "~> 6.66"
     }
   }
   # Bootstrap creates the remote state bucket, so its own state stays local.
