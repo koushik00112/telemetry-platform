@@ -1,5 +1,7 @@
 # Telemetry Platform
 
+[![CI](https://github.com/koushik00112/telemetry-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/koushik00112/telemetry-platform/actions/workflows/ci.yml)
+
 Devices send sensor readings to an HTTP API. The API authenticates each device, validates
 and stores its readings (skipping duplicates), and serves them back by time range. A
 background worker raises and resolves threshold alerts. The whole stack runs locally with
@@ -83,13 +85,13 @@ Every number is measured, dated, and labelled. Blank means not measured yet.
 
 | Metric | Value | Date | Conditions |
 |---|---|---|---|
-| Automated tests | 59 unit tests pass; 4 Postgres integration tests run in CI only | 2026-09-24 | Local, macOS, Python 3.13, SQLite for unit tests |
-| Line coverage (app + simulator) | 94% | 2026-09-24 | Unit tests only, same run |
+| Automated tests | 63 pass, including the real-Postgres integration tests | 2026-09-25 | GitHub Actions, Python 3.12, Postgres 16 ([run 36164298285](https://github.com/koushik00112/telemetry-platform/actions/runs/36164298285)) |
+| Line coverage (app + simulator) | 95% | 2026-09-25 | Same CI run |
 | Max sustained ingest rate (p95 < 250 ms) | | | Synthetic load, method in [docs/loadtest.md](docs/loadtest.md) |
-| DB restart → first successful ingest | | | From `scripts/db_outage_drill.sh` |
-| CI duration | | | GitHub Actions |
+| DB restart → first successful ingest | 0.4 s; during the outage ingest = 503, `/healthz` = 503, `/livez` = 200 | 2026-09-25 | `scripts/db_outage_drill.sh` on a GitHub Actions runner (Docker Compose, Postgres already initialised) |
+| CI duration | 1 min 56 s (lint, types, tests, security scans, Terraform validate, Docker smoke + drill) | 2026-09-25 | Same CI run |
 | Deploy time (approve → stable + smoke) | | | Printed by the Deploy job |
-| Scan findings fixed | | | Trivy / pip-audit |
+| Scan findings | 0 blocking findings (fixable HIGH/CRITICAL in dependencies, secrets and the image; CRITICAL in IaC). 6 IaC rules accepted with written reasons in `.trivyignore` | 2026-09-25 | Trivy v0.36.0 + pip-audit, same CI run |
 | Monthly cloud cost | | | AWS Cost Explorer |
 
 ## Development
