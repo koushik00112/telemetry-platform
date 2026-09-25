@@ -56,7 +56,7 @@ jobs:
           pip install -e .
           pip-audit --skip-editable
       - name: Secret and vulnerable-dependency scan (blocks on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scanners: vuln,secret
@@ -64,7 +64,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Terraform and Dockerfile misconfiguration scan (blocks on CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: .
@@ -72,7 +72,7 @@ jobs:
           trivyignores: .trivyignore
           exit-code: "1"
       - name: Misconfiguration report (HIGH and below, informational)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: .
@@ -113,7 +113,7 @@ jobs:
           python scripts/smoke.py --url http://localhost:8000
           python -m simulator --devices 5 --interval 60 --duration 3600 --backfill --fault-rate 0.05
       - name: Image scan (fixable HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: telemetry-platform:local
           severity: HIGH,CRITICAL

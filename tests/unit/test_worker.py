@@ -4,10 +4,22 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm import sessionmaker
 
 from app import worker
-from app.models import Alert, AlertRule, Device, Operator, Reading
+from app.models import Alert, AlertRule, Base, Device, Operator, Reading
+
+
+@pytest.fixture
+def session_factory(tmp_path):
+    # The worker runs in its own thread, so it needs its own DB connection, as in
+    # production. The in-memory StaticPool database in conftest shares one connection
+    # across threads, where one thread's rollback can undo the other's writes.
+    eng = create_engine(f"sqlite:///{tmp_path / 'worker.db'}", connect_args={"timeout": 10})
+    Base.metadata.create_all(eng)
+    return sessionmaker(bind=eng, expire_on_commit=False)
 
 
 @pytest.fixture
